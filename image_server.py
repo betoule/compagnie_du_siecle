@@ -34,25 +34,34 @@ viewport_x = 0  # Current x position of the viewport
 
 # Cached image data
 current_surface = None
-current_img_width = 0
+current_img_width = 0  # Width of original image
+tiled_img_width = 0  # Width of tiled (original + flipped) image
 
 def load_image(image_path, target_height=1080):
-    """Load and scale image to fit 1080 height, preserving aspect ratio."""
+    """Load and scale image, create tiled surface with flipped version."""
     img = Image.open(image_path)
     img_width, img_height = img.size
     aspect_ratio = target_height / img_height
     new_width = int(img_width * aspect_ratio)
     img = img.resize((new_width, target_height), Image.Resampling.BILINEAR)
     
+    # Create flipped image
+    flipped_img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    
+    # Create tiled image (original + flipped)
+    tiled_img = Image.new('RGB', (new_width * 2, target_height))
+    tiled_img.paste(img, (0, 0))
+    tiled_img.paste(flipped_img, (new_width, 0))
+    
     # Convert to Pygame surface
     img_byte_arr = io.BytesIO()
-    img.save(img_byte_arr, format='PNG')
+    tiled_img.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
-    return pygame.image.load(img_byte_arr), new_width
+    return pygame.image.load(img_byte_arr), new_width, new_width * 2
 
 def display_image(index, reset_viewport=True):
     """Display the image at the given index."""
-    global current_surface, current_img_width, viewport_x
+    global current_surface, current_img_width, tiled_img_width, viewport_x
     print(f"Displaying image: {image_files[index] if image_files else 'No image'}")
     if not image_files:
         screen.fill((0, 0, 0))  # Black screen if no images
@@ -63,15 +72,15 @@ def display_image(index, reset_viewport=True):
         viewport_x = 0
     
     image_path = os.path.join(IMAGE_DIR, image_files[index])
-    current_surface, current_img_width = load_image(image_path)
+    current_surface, current_img_width, tiled_img_width = load_image(image_path)
     
     # Create a black background
     screen.fill((0, 0, 0))
     
-    # Draw the visible portion of the image
-    src_rect = pygame.Rect(viewport_x, 0, 1920, 1080)
-    if src_rect.right > current_img_width:
-        src_rect.right = current_img_width
+    # Draw the visible portion of the tiled image
+    src_rect = pygame.Rect(viewport_x % tiled_img_width, 0, 1920, 1080)
+    if src_rect.right > tiled_img_width:
+        src_rect.right = tiled_img_width
     screen.blit(current_surface, (0, 0), src_rect)
     pygame.display.flip()
 
@@ -164,9 +173,9 @@ def main():
                 display_image(data)
             elif command == 'pan':
                 if current_surface:
-                    src_rect = pygame.Rect(viewport_x, 0, 1920, 1080)
-                    if src_rect.right > current_img_width:
-                        src_rect.right = current_img_width
+                    src_rect = pygame.Rect(viewport_x % tiled_img_width, 0, 1920, 1080)
+                    if src_rect.right > tiled_img_width:
+                        src_rect.right = tiled_img_width
                     screen.fill((0, 0, 0))
                     screen.blit(current_surface, (0, 0), src_rect)
                     pygame.display.flip()
@@ -177,17 +186,13 @@ def main():
         if panning and image_files and current_surface:
             # Update viewport position
             viewport_x += pan_direction * pan_speed * delta_time
-            if viewport_x < 0:
-                viewport_x = 0
-                panning = False  # Stop at left edge
-            elif viewport_x + 1920 > current_img_width:
-                viewport_x = current_img_width - 1920
-                panning = False  # Stop at right edge
+            # Wrap viewport_x to create seamless loop
+            viewport_x = viewport_x % tiled_img_width
             
             # Redraw only if viewport moved
-            src_rect = pygame.Rect(viewport_x, 0, 1920, 1080)
-            if src_rect.right > current_img_width:
-                src_rect.right = current_img_width
+            src_rect = pygame.Rect(viewport_x % tiled_img_width, 0, 1920, 1080)
+            if src_rect.right > tiled_img_width:
+                src_rect.right = tiled_img_width
             screen.fill((0, 0, 0))
             screen.blit(current_surface, (0, 0), src_rect)
             pygame.display.flip()
