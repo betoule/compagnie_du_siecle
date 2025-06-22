@@ -29,8 +29,12 @@ display_queue = queue.Queue()
 # Panning state
 panning = False
 pan_direction = 0  # -1 for left, 1 for right, 0 for stopped
-pan_speed = 10  # Pixels per second
+pan_speed = 200  # Pixels per second
 viewport_x = 0  # Current x position of the viewport
+
+# Cached image data
+current_surface = None
+current_img_width = 0
 
 def load_image(image_path, target_height=1080):
     """Load and scale image to fit 1080 height, preserving aspect ratio."""
@@ -38,7 +42,7 @@ def load_image(image_path, target_height=1080):
     img_width, img_height = img.size
     aspect_ratio = target_height / img_height
     new_width = int(img_width * aspect_ratio)
-    img = img.resize((new_width, target_height), Image.Resampling.LANCZOS)
+    img = img.resize((new_width, target_height), Image.Resampling.BILINEAR)
     
     # Convert to Pygame surface
     img_byte_arr = io.BytesIO()
@@ -48,7 +52,7 @@ def load_image(image_path, target_height=1080):
 
 def display_image(index, reset_viewport=True):
     """Display the image at the given index."""
-    global viewport_x
+    global current_surface, current_img_width, viewport_x
     print(f"Displaying image: {image_files[index] if image_files else 'No image'}")
     if not image_files:
         screen.fill((0, 0, 0))  # Black screen if no images
@@ -59,16 +63,16 @@ def display_image(index, reset_viewport=True):
         viewport_x = 0
     
     image_path = os.path.join(IMAGE_DIR, image_files[index])
-    surface, img_width = load_image(image_path)
+    current_surface, current_img_width = load_image(image_path)
     
     # Create a black background
     screen.fill((0, 0, 0))
     
     # Draw the visible portion of the image
     src_rect = pygame.Rect(viewport_x, 0, 1920, 1080)
-    if src_rect.right > img_width:
-        src_rect.right = img_width
-    screen.blit(surface, (0, 0), src_rect)
+    if src_rect.right > current_img_width:
+        src_rect.right = current_img_width
+    screen.blit(current_surface, (0, 0), src_rect)
     pygame.display.flip()
 
 @app.route('/next', methods=['GET'])
@@ -123,7 +127,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=5000, threaded=True)
 
 def main():
-    global panning, viewport_x
+    global panning, viewport_x, current_image_index, pan_direction
     # Start Flask in a separate thread
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
@@ -133,9 +137,13 @@ def main():
         display_image(current_image_index)
     
     # Main Pygame loop in the main thread
+    clock = pygame.time.Clock()
     running = True
     last_time = time.time()
     while running:
+        # Cap framerate at 30 FPS
+        clock.tick(30)
+        
         # Calculate delta time
         current_time = time.time()
         delta_time = current_time - last_time
@@ -155,29 +163,34 @@ def main():
             if command == 'image':
                 display_image(data)
             elif command == 'pan':
-                display_image(current_image_index, reset_viewport=False)
+                if current_surface:
+                    src_rect = pygame.Rect(viewport_x, 0, 1920, 1080)
+                    if src_rect.right > current_img_width:
+                        src_rect.right = current_img_width
+                    screen.fill((0, 0, 0))
+                    screen.blit(current_surface, (0, 0), src_rect)
+                    pygame.display.flip()
         except queue.Empty:
             pass
         
         # Update panning
-        if panning and image_files:
-            image_path = os.path.join(IMAGE_DIR, image_files[current_image_index])
-            _, img_width = load_image(image_path)
-            
+        if panning and image_files and current_surface:
             # Update viewport position
             viewport_x += pan_direction * pan_speed * delta_time
             if viewport_x < 0:
                 viewport_x = 0
                 panning = False  # Stop at left edge
-            elif viewport_x + 1920 > img_width:
-                viewport_x = img_width - 1920
+            elif viewport_x + 1920 > current_img_width:
+                viewport_x = current_img_width - 1920
                 panning = False  # Stop at right edge
             
-            # Redraw image at new position
-            display_image(current_image_index, reset_viewport=False)
-        
-        # Small delay to prevent CPU overuse
-        time.sleep(0.01)
+            # Redraw only if viewport moved
+            src_rect = pygame.Rect(viewport_x, 0, 1920, 1080)
+            if src_rect.right > current_img_width:
+                src_rect.right = current_img_width
+            screen.fill((0, 0, 0))
+            screen.blit(current_surface, (0, 0), src_rect)
+            pygame.display.flip()
     
     pygame.quit()
 
