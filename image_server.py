@@ -26,60 +26,96 @@ current_image_index = 0
 # Queue for display commands
 display_queue = queue.Queue()
 
-def resize_image(image_path, target_width=1920, target_height=1080):
-    """Resize image to fit 1920x1080 while maintaining aspect ratio."""
+# Panning state
+panning = False
+pan_direction = 0  # -1 for left, 1 for right, 0 for stopped
+pan_speed = 10  # Pixels per second
+viewport_x = 0  # Current x position of the viewport
+
+def load_image(image_path, target_height=1080):
+    """Load and scale image to fit 1080 height, preserving aspect ratio."""
     img = Image.open(image_path)
-    
-    # Calculate aspect ratio
     img_width, img_height = img.size
-    aspect_ratio = min(target_width / img_width, target_height / img_height)
-    
-    # Resize image
+    aspect_ratio = target_height / img_height
     new_width = int(img_width * aspect_ratio)
-    new_height = int(img_height * aspect_ratio)
-    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-    
-    # Create a black background
-    background = Image.new('RGB', (target_width, target_height), (0, 0, 0))
-    
-    # Paste image in the center
-    offset = ((target_width - new_width) // 2, (target_height - new_height) // 2)
-    background.paste(img, offset)
+    img = img.resize((new_width, target_height), Image.Resampling.LANCZOS)
     
     # Convert to Pygame surface
     img_byte_arr = io.BytesIO()
-    background.save(img_byte_arr, format='PNG')
+    img.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
-    return pygame.image.load(img_byte_arr)
+    return pygame.image.load(img_byte_arr), new_width
 
-def display_image(index):
+def display_image(index, reset_viewport=True):
     """Display the image at the given index."""
+    global viewport_x
     print(f"Displaying image: {image_files[index] if image_files else 'No image'}")
     if not image_files:
         screen.fill((0, 0, 0))  # Black screen if no images
         pygame.display.flip()
         return
     
+    if reset_viewport:
+        viewport_x = 0
+    
     image_path = os.path.join(IMAGE_DIR, image_files[index])
-    surface = resize_image(image_path)
-    screen.blit(surface, (0, 0))
+    surface, img_width = load_image(image_path)
+    
+    # Create a black background
+    screen.fill((0, 0, 0))
+    
+    # Draw the visible portion of the image
+    src_rect = pygame.Rect(viewport_x, 0, 1920, 1080)
+    if src_rect.right > img_width:
+        src_rect.right = img_width
+    screen.blit(surface, (0, 0), src_rect)
     pygame.display.flip()
 
 @app.route('/next', methods=['GET'])
 def next_image():
     """Queue the next image to be displayed."""
-    global current_image_index
+    global current_image_index, panning
     if image_files:
         current_image_index = (current_image_index + 1) % len(image_files)
-        display_queue.put(current_image_index)
+        panning = False  # Stop panning when switching images
+        display_queue.put(('image', current_image_index))
         return jsonify({"status": "success", "image": image_files[current_image_index]})
     return jsonify({"status": "error", "message": "No images available"})
+
+@app.route('/pan/<direction>', methods=['GET'])
+def pan_image(direction):
+    """Start panning in the specified direction."""
+    global panning, pan_direction
+    if image_files:
+        if direction.lower() == 'left':
+            pan_direction = -1
+        elif direction.lower() == 'right':
+            pan_direction = 1
+        else:
+            return jsonify({"status": "error", "message": "Invalid direction. Use 'left' or 'right'."})
+        panning = True
+        display_queue.put(('pan', None))  # Trigger display update
+        return jsonify({"status": "success", "direction": direction})
+    return jsonify({"status": "error", "message": "No images available"})
+
+@app.route('/stop', methods=['GET'])
+def stop_pan():
+    """Stop panning."""
+    global panning
+    panning = False
+    return jsonify({"status": "success", "message": "Panning stopped"})
 
 @app.route('/status', methods=['GET'])
 def status():
     """Return current image and status."""
     if image_files:
-        return jsonify({"status": "success", "current_image": image_files[current_image_index], "total_images": len(image_files)})
+        return jsonify({
+            "status": "success",
+            "current_image": image_files[current_image_index],
+            "total_images": len(image_files),
+            "panning": panning,
+            "pan_direction": "left" if pan_direction == -1 else "right" if pan_direction == 1 else "stopped"
+        })
     return jsonify({"status": "error", "message": "No images available"})
 
 def run_flask():
@@ -87,6 +123,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=5000, threaded=True)
 
 def main():
+    global panning, viewport_x
     # Start Flask in a separate thread
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
@@ -97,7 +134,13 @@ def main():
     
     # Main Pygame loop in the main thread
     running = True
+    last_time = time.time()
     while running:
+        # Calculate delta time
+        current_time = time.time()
+        delta_time = current_time - last_time
+        last_time = current_time
+        
         # Handle Pygame events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -106,12 +149,32 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False
         
-        # Check for display commands
+        # Process display commands
         try:
-            index = display_queue.get_nowait()
-            display_image(index)
+            command, data = display_queue.get_nowait()
+            if command == 'image':
+                display_image(data)
+            elif command == 'pan':
+                display_image(current_image_index, reset_viewport=False)
         except queue.Empty:
             pass
+        
+        # Update panning
+        if panning and image_files:
+            image_path = os.path.join(IMAGE_DIR, image_files[current_image_index])
+            _, img_width = load_image(image_path)
+            
+            # Update viewport position
+            viewport_x += pan_direction * pan_speed * delta_time
+            if viewport_x < 0:
+                viewport_x = 0
+                panning = False  # Stop at left edge
+            elif viewport_x + 1920 > img_width:
+                viewport_x = img_width - 1920
+                panning = False  # Stop at right edge
+            
+            # Redraw image at new position
+            display_image(current_image_index, reset_viewport=False)
         
         # Small delay to prevent CPU overuse
         time.sleep(0.01)
