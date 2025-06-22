@@ -14,6 +14,8 @@ app = Flask(__name__)
 pygame.init()
 screen = pygame.display.set_mode((1920, 1080), pygame.FULLSCREEN)
 pygame.display.set_caption('Image Slideshow')
+pygame.display.flip()  # Force initial display update
+time.sleep(0.1)  # Brief delay to ensure HDMI/projector is ready
 
 # Directory containing images
 IMAGE_DIR = "images"
@@ -39,6 +41,7 @@ tiled_img_width = 0  # Width of tiled (original + flipped) image
 
 def load_image(image_path, target_height=1080):
     """Load and scale image, create tiled surface with flipped version."""
+    print(f"Loading image: {image_path}")
     img = Image.open(image_path)
     img_width, img_height = img.size
     aspect_ratio = target_height / img_height
@@ -57,7 +60,9 @@ def load_image(image_path, target_height=1080):
     img_byte_arr = io.BytesIO()
     tiled_img.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
-    return pygame.image.load(img_byte_arr), new_width, new_width * 2
+    surface = pygame.image.load(img_byte_arr)
+    print(f"Loaded surface: {image_path}, width={new_width}, tiled_width={new_width * 2}")
+    return surface, new_width, new_width * 2
 
 def display_image(index, reset_viewport=True):
     """Display the image at the given index."""
@@ -93,6 +98,7 @@ def display_image(index, reset_viewport=True):
         screen.blit(current_surface, (0, 0), src_rect)
     
     pygame.display.flip()
+    print(f"Rendered image: {image_files[index]}, viewport_x={viewport_x}")
 
 @app.route('/next', methods=['GET'])
 def next_image():
@@ -180,13 +186,23 @@ def run_flask():
 
 def main():
     global panning, viewport_x, current_image_index, pan_direction, pan_speed
+    print("Starting main loop")
     # Start Flask in a separate thread
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
+    # Clear cached surface to ensure clean initialization
+    global current_surface, current_img_width, tiled_img_width
+    current_surface = None
+    current_img_width = 0
+    tiled_img_width = 0
+    
     # Display initial image
     if image_files:
+        print("Displaying initial image")
         display_image(current_image_index)
+        # Force a second render to stabilize display
+        pygame.display.flip()
     
     # Main Pygame loop in the main thread
     clock = pygame.time.Clock()
@@ -227,6 +243,7 @@ def main():
                     else:
                         screen.blit(current_surface, (0, 0), src_rect)
                     pygame.display.flip()
+                    print(f"Panning update: viewport_x={viewport_x}")
             elif command == 'speed':
                 pan_speed = data
                 print(f"Panning speed set to: {pan_speed} pixels/second")
@@ -250,6 +267,7 @@ def main():
             else:
                 screen.blit(current_surface, (0, 0), src_rect)
             pygame.display.flip()
+            print(f"Panning: viewport_x={viewport_x}")
     
     pygame.quit()
 
