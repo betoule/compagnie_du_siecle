@@ -29,7 +29,7 @@ display_queue = queue.Queue()
 # Panning state
 panning = False
 pan_direction = 0  # -1 for left, 1 for right, 0 for stopped
-pan_speed = 200  # Pixels per second
+pan_speed = 200  # Pixels per second (default)
 viewport_x = 0  # Current x position of the viewport
 
 # Cached image data
@@ -128,6 +128,20 @@ def stop_pan():
     panning = False
     return jsonify({"status": "success", "message": "Panning stopped"})
 
+@app.route('/set_speed/<speed>', methods=['GET'])
+def set_speed(speed):
+    """Set the panning speed in pixels per second."""
+    try:
+        new_speed = float(speed)
+        if new_speed <= 0:
+            return jsonify({"status": "error", "message": "Speed must be positive."})
+        if new_speed > 2000:
+            return jsonify({"status": "error", "message": "Speed must not exceed 2000 pixels/second."})
+        display_queue.put(('speed', new_speed))
+        return jsonify({"status": "success", "speed": new_speed})
+    except ValueError:
+        return jsonify({"status": "error", "message": "Invalid speed. Must be a number."})
+
 @app.route('/status', methods=['GET'])
 def status():
     """Return current image and status."""
@@ -137,7 +151,8 @@ def status():
             "current_image": image_files[current_image_index],
             "total_images": len(image_files),
             "panning": panning,
-            "pan_direction": "left" if pan_direction == -1 else "right" if pan_direction == 1 else "stopped"
+            "pan_direction": "left" if pan_direction == -1 else "right" if pan_direction == 1 else "stopped",
+            "pan_speed": pan_speed
         })
     return jsonify({"status": "error", "message": "No images available"})
 
@@ -146,7 +161,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=5000, threaded=True)
 
 def main():
-    global panning, viewport_x, current_image_index, pan_direction
+    global panning, viewport_x, current_image_index, pan_direction, pan_speed
     # Start Flask in a separate thread
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
@@ -194,6 +209,9 @@ def main():
                     else:
                         screen.blit(current_surface, (0, 0), src_rect)
                     pygame.display.flip()
+            elif command == 'speed':
+                pan_speed = data
+                print(f"Panning speed set to: {pan_speed} pixels/second")
         except queue.Empty:
             pass
         
