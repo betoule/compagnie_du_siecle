@@ -78,9 +78,20 @@ def display_image(index, reset_viewport=True):
     screen.fill((0, 0, 0))
     
     # Draw the visible portion of the tiled image
-    src_x = viewport_x % current_img_width  # Wrap within original image width
+    src_x = viewport_x % tiled_img_width
     src_rect = pygame.Rect(src_x, 0, 1920, 1080)
-    screen.blit(current_surface, (0, 0), src_rect)
+    
+    # Handle viewport spanning the boundary
+    if src_x + 1920 > tiled_img_width:
+        # Draw first part (up to end of tiled image)
+        first_width = tiled_img_width - src_x
+        screen.blit(current_surface, (0, 0), (src_x, 0, first_width, 1080))
+        # Draw second part (from start of tiled image)
+        second_width = 1920 - first_width
+        screen.blit(current_surface, (first_width, 0), (0, 0, second_width, 1080))
+    else:
+        screen.blit(current_surface, (0, 0), src_rect)
+    
     pygame.display.flip()
 
 @app.route('/next', methods=['GET'])
@@ -172,10 +183,16 @@ def main():
                 display_image(data)
             elif command == 'pan':
                 if current_surface:
-                    src_x = viewport_x % current_img_width  # Wrap within original image width
+                    src_x = viewport_x % tiled_img_width
                     src_rect = pygame.Rect(src_x, 0, 1920, 1080)
                     screen.fill((0, 0, 0))
-                    screen.blit(current_surface, (0, 0), src_rect)
+                    if src_x + 1920 > tiled_img_width:
+                        first_width = tiled_img_width - src_x
+                        screen.blit(current_surface, (0, 0), (src_x, 0, first_width, 1080))
+                        second_width = 1920 - first_width
+                        screen.blit(current_surface, (first_width, 0), (0, 0, second_width, 1080))
+                    else:
+                        screen.blit(current_surface, (0, 0), src_rect)
                     pygame.display.flip()
         except queue.Empty:
             pass
@@ -184,16 +201,18 @@ def main():
         if panning and image_files and current_surface:
             # Update viewport position
             viewport_x += pan_direction * pan_speed * delta_time
-            # Ensure viewport_x stays positive and wraps within original image width
-            viewport_x = viewport_x % current_img_width
-            if viewport_x < 0:
-                viewport_x += current_img_width
             
-            # Redraw with wrapped viewport
-            src_x = viewport_x % current_img_width
+            # Redraw with continuous viewport
+            src_x = viewport_x % tiled_img_width
             src_rect = pygame.Rect(src_x, 0, 1920, 1080)
             screen.fill((0, 0, 0))
-            screen.blit(current_surface, (0, 0), src_rect)
+            if src_x + 1920 > tiled_img_width:
+                first_width = tiled_img_width - src_x
+                screen.blit(current_surface, (0, 0), (src_x, 0, first_width, 1080))
+                second_width = 1920 - first_width
+                screen.blit(current_surface, (first_width, 0), (0, 0, second_width, 1080))
+            else:
+                screen.blit(current_surface, (0, 0), src_rect)
             pygame.display.flip()
     
     pygame.quit()
