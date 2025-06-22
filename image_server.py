@@ -102,8 +102,25 @@ def next_image():
         current_image_index = (current_image_index + 1) % len(image_files)
         panning = False  # Stop panning when switching images
         display_queue.put(('image', current_image_index))
-        return jsonify({"status": "success", "image": image_files[current_image_index]})
+        return jsonify({"status": "success", "image": image_files[current_image_index], "index": current_image_index})
     return jsonify({"status": "error", "message": "No images available"})
+
+@app.route('/select/<index>', methods=['GET'])
+def select_image(index):
+    """Queue a specific image by index to be displayed."""
+    global current_image_index, panning
+    try:
+        index = int(index)
+        if index < 0 or index >= len(image_files):
+            return jsonify({"status": "error", "message": f"Invalid index. Must be between 0 and {len(image_files) - 1}."})
+        if image_files:
+            current_image_index = index
+            panning = False  # Stop panning when selecting image
+            display_queue.put(('image', current_image_index))
+            return jsonify({"status": "success", "image": image_files[current_image_index], "index": current_image_index})
+        return jsonify({"status": "error", "message": "No images available"})
+    except ValueError:
+        return jsonify({"status": "error", "message": "Invalid index. Must be an integer."})
 
 @app.route('/pan/<direction>', methods=['GET'])
 def pan_image(direction):
@@ -149,6 +166,7 @@ def status():
         return jsonify({
             "status": "success",
             "current_image": image_files[current_image_index],
+            "current_index": current_image_index,
             "total_images": len(image_files),
             "panning": panning,
             "pan_direction": "left" if pan_direction == -1 else "right" if pan_direction == 1 else "stopped",
