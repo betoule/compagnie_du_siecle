@@ -8,5 +8,5 @@ source ~/cds/bin/activate
 
 install dependencies
 ```
-pip install requests pyinput flask 
+pip install requests pyinput flask pygame flask pillow
 ```
