@@ -38,7 +38,7 @@ class ProjectorClient:
                 if self.server_url:
                     print("Error: Multiple 'projector=' lines found.")
                     sys.exit(1)
-                self.server_url = f"http://{line[9:].strip()}"
+                self.server_url = f"http://{line[10:].strip()}"
                 continue
 
             # Parse commands

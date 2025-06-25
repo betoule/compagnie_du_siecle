@@ -6,6 +6,7 @@ import io
 import queue
 import threading
 import time
+import tempfile
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -23,6 +24,7 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 
 # Load image list
 image_files = [f for f in os.listdir(IMAGE_DIR) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
+image_files.sort()
 current_image_index = 0
 
 # Queue for display commands
@@ -42,31 +44,37 @@ tiled_img_width = 0  # Width of tiled (original + flipped) image
 def load_image(image_path, target_height=1080):
     """Load and scale image, create tiled surface with flipped version."""
     print(f"Loading image: {image_path}")
-    img = Image.open(image_path)
-    img_width, img_height = img.size
-    aspect_ratio = target_height / img_height
-    new_width = int(img_width * aspect_ratio)
-    img = img.resize((new_width, target_height), Image.Resampling.BILINEAR)
-    
-    # Create flipped image
-    flipped_img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-    
-    # Create tiled image (original + flipped)
-    tiled_img = Image.new('RGB', (new_width * 2, target_height))
-    tiled_img.paste(img, (0, 0))
-    tiled_img.paste(flipped_img, (new_width, 0))
-    
-    # Convert to Pygame surface
-    img_byte_arr = io.BytesIO()
-    tiled_img.save(img_byte_arr, format='PNG')
-    img_byte_arr.seek(0)
-    surface = pygame.image.load(img_byte_arr)
-    print(f"Loaded surface: {image_path}, width={new_width}, tiled_width={new_width * 2}")
-    return surface, new_width, new_width * 2
+    try:
+        img = Image.open(image_path)
+        img_width, img_height = img.size
+        aspect_ratio = target_height / img_height
+        new_width = int(img_width * aspect_ratio)
+        img = img.resize((new_width, target_height), Image.Resampling.BILINEAR)
+        
+        # Create flipped image
+        flipped_img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        
+        # Create tiled image (original + flipped)
+        tiled_img = Image.new('RGB', (new_width * 2, target_height))
+        tiled_img.paste(img, (0, 0))
+        tiled_img.paste(flipped_img, (new_width, 0))
+        
+        # Save to temporary BMP file (Pygame on Raspbian prefers BMP)
+        with tempfile.NamedTemporaryFile(suffix='.bmp', delete=False) as tmp_file:
+            tiled_img.save(tmp_file.name, format='BMP')
+            surface = pygame.image.load(tmp_file.name)
+            tmp_file.close()
+            os.unlink(tmp_file.name)  # Delete temporary file
+        
+        print(f"Loaded surface: {image_path}, width={new_width}, tiled_width={new_width * 2}")
+        return surface, new_width, new_width * 2
+    except Exception as e:
+        print(f"Error loading image {image_path}: {e}")
+        return None, 0, 0
 
 def display_image(index, reset_viewport=True):
     """Display the image at the given index."""
-    global current_surface, current_img_width, tiled_img_width, viewport_x
+    global current_surface, current_img_width, tiled_img_width, viewport_x, current_image_index
     print(f"Displaying image: {image_files[index] if image_files else 'No image'}")
     if not image_files:
         screen.fill((0, 0, 0))  # Black screen if no images
@@ -79,6 +87,16 @@ def display_image(index, reset_viewport=True):
     image_path = os.path.join(IMAGE_DIR, image_files[index])
     current_surface, current_img_width, tiled_img_width = load_image(image_path)
     
+    if current_surface is None:
+        print(f"Failed to load image {image_files[index]}, skipping...")
+        screen.fill((0, 0, 0))
+        pygame.display.flip()
+        # Move to next image if available
+        if len(image_files) > 1:
+            current_image_index = (index + 1) % len(image_files)
+            display_image(current_image_index)
+        return
+    
     # Create a black background
     screen.fill((0, 0, 0))
     
@@ -88,10 +106,8 @@ def display_image(index, reset_viewport=True):
     
     # Handle viewport spanning the boundary
     if src_x + 1920 > tiled_img_width:
-        # Draw first part (up to end of tiled image)
         first_width = tiled_img_width - src_x
         screen.blit(current_surface, (0, 0), (src_x, 0, first_width, 1080))
-        # Draw second part (from start of tiled image)
         second_width = 1920 - first_width
         screen.blit(current_surface, (first_width, 0), (0, 0, second_width, 1080))
     else:
