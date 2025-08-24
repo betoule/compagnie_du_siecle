@@ -22,3 +22,9 @@ component led Led 127.0.0.1:8080
 	projector pan left
 	wait
 	projector stop
+# scene 4
+    projector select 4
+    projector viewport 512
+	projector pan left
+	wait
+	projector stop
