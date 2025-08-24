@@ -1,6 +1,6 @@
 import os
 import pygame
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from PIL import Image
 import io
 import queue
@@ -13,14 +13,20 @@ app = Flask(__name__)
 
 # Initialize Pygame in the main thread
 pygame.init()
-screen = pygame.display.set_mode((1920, 1080), pygame.FULLSCREEN)
+
+# Initialize Pygame mixer for audio
+pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+
+screen = pygame.display.set_mode((1920, 1080))#, pygame.FULLSCREEN)
 pygame.display.set_caption('Image Slideshow')
 pygame.display.flip()  # Force initial display update
 time.sleep(0.1)  # Brief delay to ensure HDMI/projector is ready
 
 # Directory containing images
 IMAGE_DIR = "images"
+SOUND_DIR = "sounds"
 os.makedirs(IMAGE_DIR, exist_ok=True)
+os.makedirs(SOUND_DIR, exist_ok=True)
 
 # Load image list
 image_files = [f for f in os.listdir(IMAGE_DIR) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
@@ -116,6 +122,23 @@ def display_image(index, reset_viewport=True):
     pygame.display.flip()
     print(f"Rendered image: {image_files[index]}, viewport_x={viewport_x}")
 
+def play_sound(filename, volume=1.0):
+    """Play a sound file with specified volume."""
+    sound_path = os.path.join(SOUND_DIR, filename)
+    print(f"Attempting to play sound: {sound_path}")
+    try:
+        if not os.path.exists(sound_path):
+            print(f"Error: Sound file {sound_path} not found")
+            return False
+        sound = pygame.mixer.Sound(sound_path)
+        sound.set_volume(min(max(volume, 0.0), 1.0))  # Clamp volume to 0.0–1.0
+        sound.play()
+        print(f"Playing sound: {filename}, volume={volume}")
+        return True
+    except Exception as e:
+        print(f"Error playing sound {filename}: {e}")
+        return False
+
 @app.route('/next', methods=['GET'])
 def next_image():
     """Queue the next image to be displayed."""
@@ -160,6 +183,13 @@ def pan_image(direction):
         return jsonify({"status": "success", "direction": direction})
     return jsonify({"status": "error", "message": "No images available"})
 
+@app.route('/viewport/<x>', methods=['GET'])
+def set_viewport(x):
+    global viewport_x
+    viewport_x = int(x)
+    print(f'Set viewport to {viewport_x}')
+    return jsonify({"status": "success", "message": "viewport set"})
+
 @app.route('/stop', methods=['GET'])
 def stop_pan():
     """Stop panning."""
@@ -195,6 +225,15 @@ def status():
             "pan_speed": pan_speed
         })
     return jsonify({"status": "error", "message": "No images available"})
+
+@app.route('/play_sound/<filename>', methods=['GET'])
+def play_sound_route(filename):
+    """Queue a sound to be played."""
+    volume = float(request.args.get('volume', '1.0'))
+    if volume < 0 or volume > 1.0:
+        return jsonify({"status": "error", "message": "Volume must be between 0.0 and 1.0"}), 400
+    display_queue.put(('sound', (filename, volume)))
+    return jsonify({"status": "success", "sound": filename, "volume": volume})
 
 def run_flask():
     """Run Flask server in a separate thread."""
@@ -263,6 +302,10 @@ def main():
             elif command == 'speed':
                 pan_speed = data
                 print(f"Panning speed set to: {pan_speed} pixels/second")
+            elif command == 'sound':
+                filename, volume = data
+                if not play_sound(filename, volume):
+                    print(f"Failed to play sound: {filename}")
         except queue.Empty:
             pass
         

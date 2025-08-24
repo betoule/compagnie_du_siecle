@@ -11,8 +11,8 @@ IPAddress subnet(255, 255, 255, 0);         // Subnet mask
 
 // LED strip settings
 #define LED_PIN D4           // GPIO2 (D4 on NodeMCU)
-#define NUM_LEDS 30         // 5m strip with 60 LEDs/m
 #define BRIGHTNESS 50        // 0-255, limit to reduce power draw
+int NUM_LEDS=30;         // 5m strip with 60 LEDs/m
 
 // Initialize NeoPixel strip
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -50,6 +50,26 @@ void setAllLeds(uint32_t color) {
   }
   strip.show();
   current_color = color;
+}
+
+void setNumLeds(uint32_t num) {
+  
+}
+
+void handleSetNumLeds() {
+  String arg = server.arg("num");
+  Serial.println("Requested URL: /numleds?num=" + arg);
+  int num =  strtoi(num);
+  if (num > 300) {
+    String error = "{\"status\":\"error\",\"message\":\"Invalid mum, use ?num=200\"}";
+    server.send(400, "application/json", error);
+    Serial.println(error);
+    return;
+  }
+  NUM_LEDS = num;
+  String response = "{\"status\":\"success\",\"numleds\":\"" + NUM_LEDS + "\"}";
+  server.send(200, "application/json", response);
+  Serial.println(response);
 }
 
 // Handle /all?color=<hex_color>
@@ -116,6 +136,7 @@ void setup() {
 
   // Setup server routes
   server.on("/all", HTTP_GET, handleSetAll); // Handle /all?color=<hex_color>
+  server.on("/numleds", HTTP_GET, handleSetNumLeds);
   server.on("/status", HTTP_GET, handleStatus);
   server.onNotFound(handleNotFound);
   server.begin();

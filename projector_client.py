@@ -5,9 +5,69 @@ from pynput import keyboard
 import sys
 import threading
 
+class Service():
+    def __init__(self, name, url):
+        self.name = name
+        self.url = url
+
+    def execute(self, action, *param):
+        print(f"Received {action}, {param}")
+
+class ProjectorService(Service):
+    def execute(self, action, *param):
+        """Send an HTTP request to the projector server."""
+        try:
+            if action == 'select' and param:
+                url = f"{self.url}/select/{param[0]}"
+            elif action == 'set_speed' and param:
+                url = f"{self.url}/set_speed/{param[0]}"
+            elif action == 'pan' and param[0] in ['left', 'right']:
+                url = f"{self.url}/pan/{param[0]}"
+            elif action == 'viewport' and param:
+                url = f"{self.url}/viewport/{param[0]}"
+            elif action == 'stop':
+                url = f"{self.url}/stop"
+            elif action == 'play_sound':
+                url = f"{self.url}/play_sound/{param[0]}?volume={param[1]}"
+            else:
+                print(f"Error: Invalid projector action: {action} {param or ''}")
+                return
+
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
+            print(f"Sent: {url}, Response: {response.json()}")
+        except requests.RequestException as e:
+            print(f"Error: Failed to send command to {url}: {e}")
+
+class LedService(Service):
+    def execute(self, action, *args):
+        """Send an HTTP request to the LEDs server."""
+        if args:
+            param = args[0]
+        if len(args) > 1:
+            color = args[1]
+        if len(args) > 2:
+            delay = args[2]
+        if action == 'all' and param and len(param) == 6:
+            url = f"{self.url}/all?color={param}"
+        elif action == 'set' and param and '-' in param:
+            url = f"{self.url}/set?leds={param}&color={color}"
+            if delay:
+                url += f"&delay={delay}"
+        else:
+            print(f"Error: Invalid LEDs action: {action} {param or ''}")
+            return
+
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        print(f"Sent: {url}, Response: {response.json()}")
+
+comp_types = {'Led': LedService,
+              'Projector': ProjectorService}
+
 class ProjectorClient:
     def __init__(self, config_file):
-        self.server_url = None
+        self.components = {}
         self.scenes = []
         self.current_scene_index = 0
         self.running = True
@@ -33,26 +93,28 @@ class ProjectorClient:
                     self.scenes.append(current_scene)
                 continue
 
-            # Parse server URL
-            if line.startswith('projector='):
-                if self.server_url:
-                    print("Error: Multiple 'projector=' lines found.")
+            if line.startswith('component'):
+                _, name, comp_type, url = line.split(' ')
+                name = name.strip()
+                url = f"http://{url.strip()}"
+                if name in self.components:
+                    print(f"Error: Multiple '{name=}' lines found.")
                     sys.exit(1)
-                self.server_url = f"http://{line[10:].strip()}"
+                self.components[name] = comp_types[comp_type](name, url)
                 continue
 
             # Parse commands
             if current_scene is not None:
                 current_scene['commands'].append(line)
 
-        if not self.server_url:
-            print("Error: No 'projector=' line found in config file.")
+        if not self.components:
+            print("Error: No 'component=' line found in config file.")
             sys.exit(1)
         if not self.scenes:
             print("Error: No scenes defined in config file.")
             sys.exit(1)
 
-        print(f"Loaded config: Server={self.server_url}, Scenes={len(self.scenes)}")
+        print(f"Loaded config: components={self.components}, Scenes={len(self.scenes)}")
 
     def execute_command(self, command):
         """Execute a single command."""
@@ -60,14 +122,7 @@ class ProjectorClient:
         if not parts:
             return
 
-        if parts[0] == 'projector':
-            if len(parts) < 2:
-                print(f"Error: Invalid projector command: {command}")
-                return
-            action = parts[1]
-            param = parts[2] if len(parts) > 2 else None
-            self.send_projector_command(action, param)
-        elif parts[0] == 'wait':
+        if parts[0] == 'wait':
             if len(parts) == 1:
                 print("Waiting for Enter key...")
                 input()  # Wait for user input (Enter)
@@ -78,29 +133,17 @@ class ProjectorClient:
                     time.sleep(seconds)
                 except ValueError:
                     print(f"Error: Invalid wait duration: {parts[1]}")
+        elif parts[0] in self.components:
+            try:
+                print(f"Executing {command}")
+                self.components[parts[0]].execute(*parts[1:])
+            except Exception as e:
+                print(e)
+            if len(parts) < 2:
+                print(f"Error: Invalid projector command: {command}")
+                return
         else:
             print(f"Error: Unknown command: {command}")
-
-    def send_projector_command(self, action, param):
-        """Send an HTTP request to the projector server."""
-        try:
-            if action == 'select' and param:
-                url = f"{self.server_url}/select/{param}"
-            elif action == 'set_speed' and param:
-                url = f"{self.server_url}/set_speed/{param}"
-            elif action == 'pan' and param in ['left', 'right']:
-                url = f"{self.server_url}/pan/{param}"
-            elif action == 'stop':
-                url = f"{self.server_url}/stop"
-            else:
-                print(f"Error: Invalid projector action: {action} {param or ''}")
-                return
-
-            response = requests.get(url, timeout=5)
-            response.raise_for_status()
-            print(f"Sent: {url}, Response: {response.json()}")
-        except requests.RequestException as e:
-            print(f"Error: Failed to send command to {url}: {e}")
 
     def execute_scene(self, index):
         """Execute all commands in the specified scene."""
