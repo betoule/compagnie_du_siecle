@@ -17,7 +17,10 @@ pygame.init()
 # Initialize Pygame mixer for audio
 pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
 
-screen = pygame.display.set_mode((1920, 1080))#, pygame.FULLSCREEN)
+#display_size = 1920, 1080
+display_size = 640, 480
+
+screen = pygame.display.set_mode((display_size[0], display_size[1]))#, pygame.FULLSCREEN)
 pygame.display.set_caption('Image Slideshow')
 pygame.display.flip()  # Force initial display update
 time.sleep(0.1)  # Brief delay to ensure HDMI/projector is ready
@@ -47,7 +50,7 @@ current_surface = None
 current_img_width = 0  # Width of original image
 tiled_img_width = 0  # Width of tiled (original + flipped) image
 
-def load_image(image_path, target_height=1080):
+def load_image(image_path, target_height=display_size[1]):
     """Load and scale image, create tiled surface with flipped version."""
     print(f"Loading image: {image_path}")
     try:
@@ -108,14 +111,14 @@ def display_image(index, reset_viewport=True):
     
     # Draw the visible portion of the tiled image
     src_x = viewport_x % tiled_img_width
-    src_rect = pygame.Rect(src_x, 0, 1920, 1080)
+    src_rect = pygame.Rect(src_x, 0, display_size[0], display_size[1])
     
     # Handle viewport spanning the boundary
-    if src_x + 1920 > tiled_img_width:
+    if src_x + display_size[0] > tiled_img_width:
         first_width = tiled_img_width - src_x
-        screen.blit(current_surface, (0, 0), (src_x, 0, first_width, 1080))
-        second_width = 1920 - first_width
-        screen.blit(current_surface, (first_width, 0), (0, 0, second_width, 1080))
+        screen.blit(current_surface, (0, 0), (src_x, 0, first_width, display_size[1]))
+        second_width = display_size[0] - first_width
+        screen.blit(current_surface, (first_width, 0), (0, 0, second_width, display_size[1]))
     else:
         screen.blit(current_surface, (0, 0), src_rect)
     
@@ -288,13 +291,13 @@ def main():
             elif command == 'pan':
                 if current_surface:
                     src_x = viewport_x % tiled_img_width
-                    src_rect = pygame.Rect(src_x, 0, 1920, 1080)
+                    src_rect = pygame.Rect(src_x, 0, display_size[0], display_size[1])
                     screen.fill((0, 0, 0))
-                    if src_x + 1920 > tiled_img_width:
+                    if src_x + display_size[0] > tiled_img_width:
                         first_width = tiled_img_width - src_x
-                        screen.blit(current_surface, (0, 0), (src_x, 0, first_width, 1080))
-                        second_width = 1920 - first_width
-                        screen.blit(current_surface, (first_width, 0), (0, 0, second_width, 1080))
+                        screen.blit(current_surface, (0, 0), (src_x, 0, first_width, display_size[1]))
+                        second_width = display_size[0] - first_width
+                        screen.blit(current_surface, (first_width, 0), (0, 0, second_width, display_size[1]))
                     else:
                         screen.blit(current_surface, (0, 0), src_rect)
                     pygame.display.flip()
@@ -316,13 +319,13 @@ def main():
             
             # Redraw with continuous viewport
             src_x = viewport_x % tiled_img_width
-            src_rect = pygame.Rect(src_x, 0, 1920, 1080)
+            src_rect = pygame.Rect(src_x, 0, display_size[0], display_size[1])
             screen.fill((0, 0, 0))
-            if src_x + 1920 > tiled_img_width:
+            if src_x + display_size[0] > tiled_img_width:
                 first_width = tiled_img_width - src_x
-                screen.blit(current_surface, (0, 0), (src_x, 0, first_width, 1080))
-                second_width = 1920 - first_width
-                screen.blit(current_surface, (first_width, 0), (0, 0, second_width, 1080))
+                screen.blit(current_surface, (0, 0), (src_x, 0, first_width, display_size[1]))
+                second_width = display_size[0] - first_width
+                screen.blit(current_surface, (first_width, 0), (0, 0, second_width, display_size[1]))
             else:
                 screen.blit(current_surface, (0, 0), src_rect)
             pygame.display.flip()
