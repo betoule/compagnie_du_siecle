@@ -29,6 +29,8 @@ class ProjectorService(Service):
                 url = f"{self.url}/stop"
             elif action == 'play_sound':
                 url = f"{self.url}/play_sound/{param[0]}?volume={param[1]}"
+            elif action == 'print':
+                url = f"{self.url}/print/{'%20'.join(param)}"
             else:
                 print(f"Error: Invalid projector action: {action} {param or ''}")
                 return
@@ -65,14 +67,28 @@ class LedService(Service):
 comp_types = {'Led': LedService,
               'Projector': ProjectorService}
 
+inter_scene="""led all 000000
+projector stop
+wait
+led all 010101
+projector print scene {scene}
+wait
+"""
+
 class ProjectorClient:
     def __init__(self, config_file):
         self.components = {}
         self.scenes = []
-        self.current_scene_index = 0
+        self.cursor = 0
+        self.commands = []
         self.running = True
         self.load_config(config_file)
         self.key_listener = None
+        self.status = 'Waiting'
+
+    def add_command(self, line):
+        self.commands.append(line)
+        self.cursor = len(self.commands)
 
     def load_config(self, config_file):
         """Parse the configuration file to extract server URL and scenes."""
@@ -89,8 +105,10 @@ class ProjectorClient:
             if not line or line.startswith('#'):  # Skip empty lines and comments
                 if line.startswith('# scene'):  # New scene
                     scene_name = line[7:].strip()  # Extract scene name
-                    current_scene = {'name': scene_name, 'commands': []}
+                    current_scene = {'name': scene_name, 'cursor': self.cursor}
                     self.scenes.append(current_scene)
+                    for command in inter_scene.splitlines():
+                        self.add_command(command.format(scene=scene_name))
                 continue
 
             if line.startswith('component'):
@@ -102,11 +120,10 @@ class ProjectorClient:
                     sys.exit(1)
                 self.components[name] = comp_types[comp_type](name, url)
                 continue
-
+            
             # Parse commands
             if current_scene is not None:
-                current_scene['commands'].append(line)
-
+                self.add_command(line)
         if not self.components:
             print("Error: No 'component=' line found in config file.")
             sys.exit(1)
@@ -114,8 +131,11 @@ class ProjectorClient:
             print("Error: No scenes defined in config file.")
             sys.exit(1)
 
-        print(f"Loaded config: components={self.components}, Scenes={len(self.scenes)}")
-
+        print(f"Loaded config: components={self.components}, Scenes={len(self.scenes)}, Commands={len(self.commands)}")
+        for scene in self.scenes:
+            print(f'{scene["name"]}: {scene["cursor"]}')
+        self.cursor = 0
+        
     def execute_command(self, command):
         """Execute a single command."""
         parts = command.split()
@@ -124,8 +144,8 @@ class ProjectorClient:
 
         if parts[0] == 'wait':
             if len(parts) == 1:
-                print("Waiting for Enter key...")
-                input()  # Wait for user input (Enter)
+                self.status = 'Waiting'
+                print("Waiting for key stroke...")
             elif len(parts) == 2:
                 try:
                     seconds = float(parts[1])
@@ -135,26 +155,41 @@ class ProjectorClient:
                     print(f"Error: Invalid wait duration: {parts[1]}")
         elif parts[0] in self.components:
             try:
-                print(f"Executing {command}")
+                print(f"Executing {command} ({self.cursor}, scene {self.get_current_scene()}")
                 self.components[parts[0]].execute(*parts[1:])
             except Exception as e:
                 print(e)
             if len(parts) < 2:
                 print(f"Error: Invalid projector command: {command}")
-                return
         else:
             print(f"Error: Unknown command: {command}")
+        self.cursor += 1
 
-    def execute_scene(self, index):
+    def execution_loop(self):
+        while self.running:
+            if self.status == 'Waiting':
+                time.sleep(0.1)
+                continue
+            if self.cursor < len(self.commands):
+                self.execute_command(self.commands[self.cursor])
+            else:
+                print('Fin du script')
+                self.execute_command('wait')
+
+    def get_current_scene(self):
+        for index, scene in enumerate(self.scenes):
+            if scene['cursor'] > self.cursor:
+                return index - 1
+        return len(self.scenes)
+
+    def execute_scene(self, delta):
         """Execute all commands in the specified scene."""
+        index = self.get_current_scene() + delta
         if 0 <= index < len(self.scenes):
-            self.current_scene_index = index
             scene = self.scenes[index]
-            print(f"\nExecuting scene: {scene['name']} (index {index})")
-            for command in scene['commands']:
-                if not self.running:
-                    break
-                self.execute_command(command)
+            self.cursor = scene['cursor']
+            print(f"\nExecuting scene: {scene['name']} (index {index}, cursor {self.cursor})")
+            self.status = 'Running'
         else:
             print(f"Error: Invalid scene index: {index}")
 
@@ -162,26 +197,22 @@ class ProjectorClient:
         """Handle key presses for scene navigation."""
         try:
             if key == keyboard.Key.left:
-                if self.current_scene_index > 0:
-                    print("Switching to previous scene")
-                    self.execute_scene(self.current_scene_index - 1)
+                print("Switching to previous scene")
+                self.execute_scene(- 1)
             elif key == keyboard.Key.right:
-                if self.current_scene_index < len(self.scenes) - 1:
-                    print("Switching to next scene")
-                    self.execute_scene(self.current_scene_index + 1)
+                print("Switching to next scene")
+                self.execute_scene(+1)
             elif key == keyboard.Key.esc:
                 print("Exiting...")
                 self.running = False
                 sys.exit(0)
+            else:
+                self.status = 'Running'
         except Exception as e:
             print(f"Error handling key press: {e}")
 
     def start(self):
         """Start the client and key listener."""
-        # Execute the first scene
-        if self.scenes:
-            self.execute_scene(0)
-
         # Start key listener in a separate thread
         listener = keyboard.Listener(on_press=self.on_key_press)
         listener.start()
@@ -189,8 +220,7 @@ class ProjectorClient:
 
         # Keep the main thread alive
         try:
-            while self.running:
-                time.sleep(0.1)
+            self.execution_loop()
         except KeyboardInterrupt:
             self.running = False
         finally:

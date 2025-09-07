@@ -7,6 +7,7 @@ import queue
 import threading
 import time
 import tempfile
+import sys
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -17,10 +18,13 @@ pygame.init()
 # Initialize Pygame mixer for audio
 pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
 
-#display_size = 1920, 1080
-display_size = 640, 480
+if (len(sys.argv) > 1) and (sys.argv[1] == '--full'):
+    display_size = 1920, 1080
+    screen = pygame.display.set_mode((display_size[0], display_size[1]), pygame.FULLSCREEN)
+else:
+    display_size = 640, 480
+    screen = pygame.display.set_mode((display_size[0], display_size[1]))
 
-screen = pygame.display.set_mode((display_size[0], display_size[1]))#, pygame.FULLSCREEN)
 pygame.display.set_caption('Image Slideshow')
 pygame.display.flip()  # Force initial display update
 time.sleep(0.1)  # Brief delay to ensure HDMI/projector is ready
@@ -80,7 +84,16 @@ def load_image(image_path, target_height=display_size[1]):
     except Exception as e:
         print(f"Error loading image {image_path}: {e}")
         return None, 0, 0
-
+    
+def print_screen(text):
+    font = pygame.font.SysFont("arial", 36)  # Use Arial font with size 36
+    BLACK = (0, 0, 0)
+    WHITE = (255, 255, 255)
+    screen.fill(BLACK)
+    text = font.render(text, True, WHITE)  # Text, antialiasing, color
+    screen.blit(text, (100, 100))
+    pygame.display.flip()
+    
 def display_image(index, reset_viewport=True):
     """Display the image at the given index."""
     global current_surface, current_img_width, tiled_img_width, viewport_x, current_image_index
@@ -193,12 +206,19 @@ def set_viewport(x):
     print(f'Set viewport to {viewport_x}')
     return jsonify({"status": "success", "message": "viewport set"})
 
+@app.route('/print/<text>', methods=['GET'])
+def text(text):
+    print(f'print text {text}')
+    display_queue.put(('print', text))
+    return jsonify({"status": "success", "message": "Text queued"})
+
 @app.route('/stop', methods=['GET'])
 def stop_pan():
     """Stop panning."""
     global panning
     panning = False
-    return jsonify({"status": "success", "message": "Panning stopped"})
+    display_queue.put(('stop', None))  # Queue stop command
+    return jsonify({"status": "success", "message": "Panning and sound playback stopped"})
 
 @app.route('/set_speed/<speed>', methods=['GET'])
 def set_speed(speed):
@@ -309,6 +329,12 @@ def main():
                 filename, volume = data
                 if not play_sound(filename, volume):
                     print(f"Failed to play sound: {filename}")
+            elif command == 'stop':
+                pygame.mixer.stop()  # Stop all sound playback
+                panning = False
+                print("Stopped panning and sound playback")
+            elif command == 'print':
+                print_screen(data)
         except queue.Empty:
             pass
         

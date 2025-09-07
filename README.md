@@ -17,3 +17,4 @@ pip install requests pyinput flask pygame flask pillow
 export DISPLAY=:0
 wlr-randr --output HDMI-A-1 --transform flipped
 ```
+
