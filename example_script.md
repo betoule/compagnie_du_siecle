@@ -13,20 +13,20 @@ component led Led 127.0.0.1:8080
 	led all fefcff
 # scene 2 : Chocolaterie
     led all f7f7f7
-	projector select 02-Mur.jpg
+	projector select 02-Mur.png
 	projector set_speed 50
 	#projector viewport 
 	projector pan right
     wait
     projector play_sound Ticket.mp3 1
     wait
-	projector select 03-Mur_choco.png
+	projector select 03-Mur_chocovf2.png
 	projector viewport 2018
 	projector pan left
 	wait
 	projector stop
     wait
-	projector select 04-Porte.jpeg
+	projector select 04-Porte.jpg
 # scene 3 : Rivière
     led all f7a80a
     projector select 05-Rivière.jpg
@@ -45,6 +45,8 @@ component led Led 127.0.0.1:8080
 # scene 4 :Portes
     projector select 06-Préportes.jpeg
     led all 262525
+    wait
+    projector play_sound riviere.mp3
     wait
     led all fcfcfc
     projector set_speed 20
