@@ -1,5 +1,5 @@
-component projector Projector 192.168.0.45:5000
-component led Led 127.0.0.1:8080
+component projector Projector 192.168.0.16:5000
+component led Led 192.168.0.100:8080
 
 # scene 1: Narrateur
 	led all 8fbaad
