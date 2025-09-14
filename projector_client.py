@@ -230,7 +230,9 @@ class ProjectorClient:
                 print("Switching to next scene")
                 self.execute_scene(+1)
             elif key == keyboard.Key.left:
-                self.cursor -= 1
+                self.cursor -= 2
+                index = self.get_current_scene()
+                print(f"\Back to scene: {self.scenes[index]['name']} (index {index}, cursor {self.cursor})")
                 self.execute_command('wait')
             elif key == keyboard.Key.right:
                 self.cursor += 1

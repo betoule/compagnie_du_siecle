@@ -1,5 +1,5 @@
 component projector Projector 192.168.0.16:5000
-component led Led 192.168.0.100:8080
+component led Led 192.168.0.100
 
 # scene 1: Narrateur
 	led all 8fbaad
@@ -47,6 +47,7 @@ component led Led 192.168.0.100:8080
 	wait
 	led all fcfcfc
 	wait
+# Interlude: Augustus
 	projector play_sound Augustus.mp3 0.8
 # scene 6 :Portes
     projector select 06-Préportes.jpeg
@@ -72,11 +73,13 @@ component led Led 192.168.0.100:8080
     wait
     led all 6a1be0
     wait
+# Interlude: Violette
     projector play_sound Violette.mp3 0.5
 # scene 8 : Ecureuils
     led all fcfcfc
     projector select 11-noix.jpg
     wait
+# Interlude: Veruca
     projector play_sound Veruca.mp3 0.5
 # scene 9 : Ascenseur
     led all fcfcfc
@@ -121,7 +124,13 @@ component led Led 192.168.0.100:8080
     led all fcfcfc
     projector select 13-télé.jpeg
     wait
+# Interlude: Mike
     projector play_sound Mike.mp3 0.5
 # scene 11 : Final
-	projector select 04-Porte.jpg
+	projector select 13-télé.jpeg
 	led all fcfcfc
+# Salutations
+    projector select 04-Porte.jpg
+	led all fcfcfc
+# Fin
+	led all 111111

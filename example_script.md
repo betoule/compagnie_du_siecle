@@ -1,3 +1,4 @@
+#component projector Projector 192.168.0.45:5000
 component led Led 127.0.0.1:8080
 
 # scene intro
