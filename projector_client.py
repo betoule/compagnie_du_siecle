@@ -12,13 +12,15 @@ class Service():
 
     def execute(self, action, *param):
         print(f"Received {action}, {param}")
-
+        
 class ProjectorService(Service):
     def execute(self, action, *param):
         """Send an HTTP request to the projector server."""
         try:
             if action == 'select' and param:
-                url = f"{self.url}/select/{param[0]}"
+                if len(param) == 1:
+                    param = (param[0], 0)
+                url = f"{self.url}/select/{param[0]}?viewport={param[1]}"
             elif action == 'set_speed' and param:
                 url = f"{self.url}/set_speed/{param[0]}"
             elif action == 'pan' and param[0] in ['left', 'right']:
@@ -37,11 +39,34 @@ class ProjectorService(Service):
 
             response = requests.get(url, timeout=5)
             response.raise_for_status()
-            print(f"Sent: {url}, Response: {response.json()}")
+            #print(f"Sent: {url}, Response: {response.json()}")
         except requests.RequestException as e:
             print(f"Error: Failed to send command to {url}: {e}")
 
+def parse_hex_color(hex_str):
+    """Parse 6-digit hex color to RGB tuple."""
+    if len(hex_str) != 6:
+        return None
+    try:
+        r = int(hex_str[0:2], 16)
+        g = int(hex_str[2:4], 16)
+        b = int(hex_str[4:6], 16)
+        return (r, g, b)
+    except ValueError:
+        return None
+
 class LedService(Service):
+    MAX_BRIGHTNESS = 255
+
+    def scale_color(self, hex_str):
+        r,g,b = parse_hex_color(hex_str)
+        if (r+g+b) > self.MAX_BRIGHTNESS:
+            new_color = ''.join([f'{int(v/(r+g+b)*self.MAX_BRIGHTNESS):02x}' for v in (r, g, b)])
+            print(f'Rescaled {hex_str} to {new_color} to match brightness limitation')
+            return new_color
+        else:
+            return hex_str
+        
     def execute(self, action, *args):
         """Send an HTTP request to the LEDs server."""
         if args:
@@ -51,9 +76,9 @@ class LedService(Service):
         if len(args) > 2:
             delay = args[2]
         if action == 'all' and param and len(param) == 6:
-            url = f"{self.url}/all?color={param}"
+            url = f"{self.url}/all?color={self.scale_color(param)}"
         elif action == 'set' and param and '-' in param:
-            url = f"{self.url}/set?leds={param}&color={color}"
+            url = f"{self.url}/set?leds={param}&color={self.scale_color(color)}"
             if delay:
                 url += f"&delay={delay}"
         else:
@@ -62,12 +87,13 @@ class LedService(Service):
 
         response = requests.get(url, timeout=5)
         response.raise_for_status()
-        print(f"Sent: {url}, Response: {response.json()}")
+        #print(f"Sent: {url}, Response: {response.json()}")
 
 comp_types = {'Led': LedService,
               'Projector': ProjectorService}
 
-inter_scene="""led all 000000
+inter_scene="""wait
+led all 000000
 projector stop
 wait
 led all 010101
@@ -77,10 +103,7 @@ wait
 
 class ProjectorClient:
     def __init__(self, config_file):
-        self.components = {}
-        self.scenes = []
-        self.cursor = 0
-        self.commands = []
+        self.config_file = config_file
         self.running = True
         self.load_config(config_file)
         self.key_listener = None
@@ -92,6 +115,10 @@ class ProjectorClient:
 
     def load_config(self, config_file):
         """Parse the configuration file to extract server URL and scenes."""
+        self.components = {}
+        self.commands = []
+        self.scenes = []
+        self.cursor = 0
         try:
             with open(config_file, 'r') as f:
                 lines = f.readlines()
@@ -155,7 +182,7 @@ class ProjectorClient:
                     print(f"Error: Invalid wait duration: {parts[1]}")
         elif parts[0] in self.components:
             try:
-                print(f"Executing {command} ({self.cursor}, scene {self.get_current_scene()}")
+                print(f"(scene {self.get_current_scene()}, {self.cursor}): Executing {command}")
                 self.components[parts[0]].execute(*parts[1:])
             except Exception as e:
                 print(e)
@@ -196,18 +223,26 @@ class ProjectorClient:
     def on_key_press(self, key):
         """Handle key presses for scene navigation."""
         try:
-            if key == keyboard.Key.left:
+            if key == keyboard.Key.up:
                 print("Switching to previous scene")
                 self.execute_scene(- 1)
-            elif key == keyboard.Key.right:
+            elif key == keyboard.Key.down:
                 print("Switching to next scene")
                 self.execute_scene(+1)
+            elif key == keyboard.Key.left:
+                self.cursor -= 1
+                self.execute_command('wait')
+            elif key == keyboard.Key.right:
+                self.cursor += 1
+                self.execute_command('wait')                
             elif key == keyboard.Key.esc:
                 print("Exiting...")
                 self.running = False
                 sys.exit(0)
-            else:
+            elif key == keyboard.Key.space:
                 self.status = 'Running'
+            elif key == keyboard.KeyCode.from_char('r'):
+                self.load_config(self.config_file)
         except Exception as e:
             print(f"Error handling key press: {e}")
 

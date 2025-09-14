@@ -38,6 +38,7 @@ os.makedirs(SOUND_DIR, exist_ok=True)
 # Load image list
 image_files = [f for f in os.listdir(IMAGE_DIR) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
 image_files.sort()
+print(image_files)
 current_image_index = 0
 
 # Queue for display commands
@@ -94,17 +95,16 @@ def print_screen(text):
     screen.blit(text, (100, 100))
     pygame.display.flip()
     
-def display_image(index, reset_viewport=True):
+def display_image(index, viewport=0):
     """Display the image at the given index."""
     global current_surface, current_img_width, tiled_img_width, viewport_x, current_image_index
+    viewport_x = viewport
     print(f"Displaying image: {image_files[index] if image_files else 'No image'}")
     if not image_files:
         screen.fill((0, 0, 0))  # Black screen if no images
         pygame.display.flip()
         return
     
-    if reset_viewport:
-        viewport_x = 0
     
     image_path = os.path.join(IMAGE_DIR, image_files[index])
     current_surface, current_img_width, tiled_img_width = load_image(image_path)
@@ -155,33 +155,20 @@ def play_sound(filename, volume=1.0):
         print(f"Error playing sound {filename}: {e}")
         return False
 
-@app.route('/next', methods=['GET'])
-def next_image():
-    """Queue the next image to be displayed."""
-    global current_image_index, panning
-    if image_files:
-        current_image_index = (current_image_index + 1) % len(image_files)
-        panning = False  # Stop panning when switching images
-        display_queue.put(('image', current_image_index))
-        return jsonify({"status": "success", "image": image_files[current_image_index], "index": current_image_index})
-    return jsonify({"status": "error", "message": "No images available"})
-
-@app.route('/select/<index>', methods=['GET'])
-def select_image(index):
+@app.route('/select/<name>', methods=['GET'])
+def select_image(name):
     """Queue a specific image by index to be displayed."""
     global current_image_index, panning
+    viewport = float(request.args.get('viewport', '0'))
     try:
-        index = int(index)
-        if index < 0 or index >= len(image_files):
-            return jsonify({"status": "error", "message": f"Invalid index. Must be between 0 and {len(image_files) - 1}."})
-        if image_files:
-            current_image_index = index
+        if name in image_files:
             panning = False  # Stop panning when selecting image
-            display_queue.put(('image', current_image_index))
-            return jsonify({"status": "success", "image": image_files[current_image_index], "index": current_image_index})
+            current_image_index = image_files.index(name)
+            display_queue.put(('image', (current_image_index, viewport)))
+            return jsonify({"status": "success", "image": name, "index": current_image_index})
         return jsonify({"status": "error", "message": "No images available"})
-    except ValueError:
-        return jsonify({"status": "error", "message": "Invalid index. Must be an integer."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/pan/<direction>', methods=['GET'])
 def pan_image(direction):
@@ -307,7 +294,7 @@ def main():
         try:
             command, data = display_queue.get_nowait()
             if command == 'image':
-                display_image(data)
+                display_image(*data)
             elif command == 'pan':
                 if current_surface:
                     src_x = viewport_x % tiled_img_width
