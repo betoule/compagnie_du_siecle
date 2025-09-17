@@ -2,6 +2,7 @@ component projector Projector 192.168.0.16:5000
 component led Led 192.168.0.100
 
 # scene 1: Narrateur
+    projector play_sound theatre_ouverture.mp3 1
 	led all 8fbaad
 	wait
 	projector play_sound coup_de_feu.mp3 1
@@ -97,11 +98,13 @@ component led Led 192.168.0.100
     projector play_sound ascenseur.mp3 0.5
     projector pan right
     wait
+    projector play_sound ascenseur_fin.mp3 0.5
+    wait
     projector stop
 # scene 10 : Télé
     led all fcfcfc
     projector select 13-télé.jpeg
-    # mantenant allumez !
+    # maintenant allumez !
     wait
     projector play_sound disparition.mp3 0.5
     led all AD0009
