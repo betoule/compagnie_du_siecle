@@ -208,6 +208,7 @@ def select_image(name):
             return jsonify({"status": "success", "image": name, "index": current_image_index})
         return jsonify({"status": "error", "message": "No images available"})
     except Exception as e:
+        print(str(e))
         return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/pan/<direction>', methods=['GET'])

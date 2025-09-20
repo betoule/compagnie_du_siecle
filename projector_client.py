@@ -20,7 +20,7 @@ class ProjectorService(Service):
             if action == 'select' and param:
                 if len(param) == 1:
                     param = (param[0], 0)
-                url = f"{self.url}/select/{param[0]}?viewport={param[1]}"
+                url = f"{self.url}/select/{param[0]}?viewport_x={param[1]}"
             elif action == 'set_speed' and param:
                 url = f"{self.url}/set_speed/{param[0]}"
             elif action == 'pan' and param[0] in ['left', 'right', 'up', 'down']:

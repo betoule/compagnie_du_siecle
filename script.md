@@ -32,7 +32,7 @@ component led Led 127.0.0.1:8080
     projector play_sound Ticket.mp3 0.8
     #Et aujourd'hui nous sommes le 1er février
 	wait
-	projector select 03-Mur_chocovf2.png 1400
+	projector select 03-Mur_chocovf3.png 1400
     wait
 	projector stop
 	wait
