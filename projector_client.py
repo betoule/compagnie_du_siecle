@@ -23,7 +23,7 @@ class ProjectorService(Service):
                 url = f"{self.url}/select/{param[0]}?viewport={param[1]}"
             elif action == 'set_speed' and param:
                 url = f"{self.url}/set_speed/{param[0]}"
-            elif action == 'pan' and param[0] in ['left', 'right']:
+            elif action == 'pan' and param[0] in ['left', 'right', 'up', 'down']:
                 url = f"{self.url}/pan/{param[0]}"
             elif action == 'viewport' and param:
                 url = f"{self.url}/viewport/{param[0]}"

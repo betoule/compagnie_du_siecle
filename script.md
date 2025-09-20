@@ -1,9 +1,12 @@
-component projector Projector 192.168.0.16:5000
-component led Led 192.168.0.100
+#component projector Projector 192.168.0.16:5000
+#component led Led 192.168.0.100
+component projector Projector 127.0.0.1:5000
+component led Led 127.0.0.1:8080
 
 # scene 1: Narrateur
     projector play_sound theatre_ouverture.mp3 1
 	led all 8fbaad
+    projector select 01-maison.jpg
 	#Je veux regarder la télé
 	wait
 	projector play_sound coup_de_feu.mp3 1
@@ -105,21 +108,23 @@ component led Led 192.168.0.100
     #Accrochez vous tout le monde
     wait
     projector play_sound ascenseur.mp3 0.5
+	projector pan up
     wait
     projector play_sound ascenseur.mp3 0.5
     projector pan left
     wait 
     projector play_sound ascenseur.mp3 0.5
+	projector pan down
     wait
     projector play_sound ascenseur.mp3 0.5
     projector pan right
     wait
-    projector play_sound ascenseur_fin.mp3 0.5
+	projector stop
+    projector play_sound ascensur_fin.mp3 0.5
     wait
-    projector stop
 # scene 10 : Télé
     led all fcfcfc
-    projector select 13-télé.jpeg
+    projector select 13-télé.jpg
     # maintenant allumez !
     wait
     projector play_sound disparition.mp3 0.5
@@ -129,7 +134,7 @@ component led Led 192.168.0.100
     led all fcfcfc
 	# Regardez l'écran
     wait
-    projector select 14-tablette.jpeg
+    projector select 14-tablette.jpg
     projector play_sound unsettling_02-96366.mp3 0.5
     led all 19AA1E
 	# Prenez la
@@ -137,7 +142,7 @@ component led Led 192.168.0.100
     led all fcfcfc
 	# C'est fantastique
 	wait
-    projector select 13-télé.jpeg
+    projector select 13-télé.jpg
 	# À plus tard/ à tout de suite
     wait
     projector play_sound disparition.mp3 0.5
@@ -149,7 +154,7 @@ component led Led 192.168.0.100
     wait
     projector play_sound unsettling_02-96366.mp3 0.5
     led all 19AA1E
-	projector select 15-mike.jpeg
+	projector select 15-mike.jpg
 	# Attrapez le vite
     wait
     led all fcfcfc
@@ -158,7 +163,7 @@ component led Led 192.168.0.100
 # scene Interlude: Mike
     projector play_sound Mike.mp3 0.5
 # scene 11 : Final
-	projector select 13-télé.jpeg
+	projector select 13-télé.jpg
 	led all fcfcfc
 # scene Salutations
     projector select 04-Porte.jpg
