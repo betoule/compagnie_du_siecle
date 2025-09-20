@@ -33,6 +33,10 @@ class ProjectorService(Service):
                 url = f"{self.url}/play_sound/{param[0]}?volume={param[1]}"
             elif action == 'print':
                 url = f"{self.url}/print/{'%20'.join(param)}"
+            elif action == 'pause':
+                url = f"{self.url}/pause"
+            elif action == 'resume':
+                url = f"{self.url}/resume"
             else:
                 print(f"Error: Invalid projector action: {action} {param or ''}")
                 return
@@ -236,7 +240,7 @@ class ProjectorClient:
                 self.execute_command('wait')
             elif key == keyboard.Key.right:
                 self.cursor += 1
-                self.execute_command('wait')                
+                self.execute_command('wait')
             elif key == keyboard.Key.esc:
                 print("Exiting...")
                 self.running = False
@@ -245,6 +249,10 @@ class ProjectorClient:
                 self.status = 'Running'
             elif key == keyboard.KeyCode.from_char('r'):
                 self.load_config(self.config_file)
+            elif key == keyboard.KeyCode.from_char('p'):
+                self.components['projector'].execute('pause')
+            elif key == keyboard.KeyCode.from_char('s'):
+                self.components['projector'].execute('resume')
         except Exception as e:
             print(f"Error handling key press: {e}")
 
