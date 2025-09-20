@@ -4,6 +4,7 @@ component led Led 192.168.0.100
 # scene 1: Narrateur
     projector play_sound theatre_ouverture.mp3 1
 	led all 8fbaad
+	#Je veux regarder la télé
 	wait
 	projector play_sound coup_de_feu.mp3 1
 	wait
@@ -11,6 +12,7 @@ component led Led 192.168.0.100
 # scene 2 : maison
     projector select 01-maison.jpg
 	led all 131202
+	#voyons voir ce qui se passe chez les Bucket... À plus tard
 	wait
 	led all fefcff
 # scene 3: maison
@@ -22,8 +24,10 @@ component led Led 192.168.0.100
 	#projector set_speed 50
 	#projector viewport 
 	#projector pan right
+	#Voyons voir... Il est écrit dessus
     wait
     projector play_sound Ticket.mp3 0.8
+    #Et aujourd'hui nous sommes le 1er février
 	wait
 	projector select 03-Mur_chocovf2.png 1400
     wait
@@ -33,6 +37,7 @@ component led Led 192.168.0.100
 	projector pan left
 	wait
 	projector stop
+	#Voilà, nous y sommes
     wait
 	projector select 04-Porte.jpg
 # scene 5 : Rivière
@@ -43,8 +48,10 @@ component led Led 192.168.0.100
 	wait
 	projector stop
 	led all 573220
+	#Fais attention Augustus, tu te penches trop en avant
 	wait
 	led all fa0505
+	#Ça y est, le voilà parti
 	wait
 	led all 573220
 	wait
@@ -53,26 +60,34 @@ component led Led 192.168.0.100
 # scene 6 :Portes
     projector select 06-Préportes.jpeg
     led all 200505
+    #Comment ces stupides oompa-lommpas font ils pour voir où ils vont
     wait
 	projector play_sound riviere.mp3 0.5
+	#Allumez les lumières
 	wait
     led all fcfcfc
     projector set_speed 50
     projector select 07-Portes.png -600
 	projector pan right	
+	# Arrêtez le bateau
     wait
     projector stop
 # scene 7 : Machines
     projector select 10-Machines.jpg
     led all 301000
+    #C'est parti
 	wait
 	projector play_sound charging-machine-90403.mp3 0.8
+	# Tout ton visage devient bleu
     wait
     led all 2A3AEB
+    #Ma fille devient toute bleue et toute mauve
     wait
     led all 965FE9
+    # Violette tu deviens violette
     wait
     led all 6a1be0
+    #Sauvez-la
     wait
 	led all 301000
 # scene Interlude: Violette
@@ -87,6 +102,7 @@ component led Led 192.168.0.100
     led all fcfcfc
 	projector set_speed 250
     projector select 12-Ascenseur.jpg
+    #Accrochez vous tout le monde
     wait
     projector play_sound ascenseur.mp3 0.5
     wait
